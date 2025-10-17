@@ -1,0 +1,27 @@
+# OSX
+.DS_Store
+
+# VSCode
+.vscode/
+jsconfig.json
+
+# Build artifacts
+build/
+
+# Android/Gradle
+.cxx
+.gradle
+.idea
+.project
+.settings
+local.properties
+android.iml
+
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Expo
+.expo/*

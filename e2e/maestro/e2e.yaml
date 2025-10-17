@@ -1,0 +1,11 @@
+appId: com.hortemo.billingclient.e2e
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    text: "Expo Billing Client"
+- tapOn:
+    id: "testButton-integration"
+- assertVisible:
+    id: "testStatus-integration"
+    text: "done"
