@@ -11,23 +11,17 @@ npm install @hortemo/expo-billing-client
 ## Usage
 
 ```ts
-import {
+import BillingClient, {
   BillingResponseCode,
   ProductType,
-  startConnection,
-  queryProductDetails,
-  launchBillingFlow,
-  acknowledgePurchase,
-  queryPurchases,
-  addPurchasesUpdatedListener,
 } from "@hortemo/expo-billing-client";
 
-const connectionResult = await startConnection();
+const connectionResult = await BillingClient.startConnection();
 if (connectionResult.responseCode !== BillingResponseCode.OK) {
   throw new Error(connectionResult.debugMessage);
 }
 
-const { productDetailsList } = await queryProductDetails({
+const { productDetailsList } = await BillingClient.queryProductDetails({
   products: [
     { productId: "coins_100", productType: ProductType.INAPP },
     { productId: "pro_subscription", productType: ProductType.SUBS },
@@ -45,7 +39,7 @@ if (!subscription?.subscriptionOfferDetails?.length) {
 const subscriptionOffer = subscription.subscriptionOfferDetails[0];
 
 const purchases = await new Promise((resolve, reject) => {
-  const subscription = addPurchasesUpdatedListener((event) => {
+  const subscription = BillingClient.addListener("purchasesUpdated", (event) => {
     subscription.remove();
     if (event.billingResult.responseCode === BillingResponseCode.OK) {
       resolve(event.purchases);
@@ -54,7 +48,7 @@ const purchases = await new Promise((resolve, reject) => {
     }
   });
 
-  launchBillingFlow({
+  BillingClient.launchBillingFlow({
     products: [
       {
         productId: subscription.productId,
@@ -65,7 +59,7 @@ const purchases = await new Promise((resolve, reject) => {
   }).catch(reject);
 });
 
-await acknowledgePurchase({
+await BillingClient.acknowledgePurchase({
   purchaseToken: purchases[0].purchaseToken,
 });
 ```
