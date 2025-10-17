@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@hortemo/expo-billing-client": ["../src/index"],
+      "@hortemo/expo-billing-client/*": ["../src/*"]
+    }
+  }
+}
