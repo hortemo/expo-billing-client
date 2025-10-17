@@ -12,33 +12,34 @@ interface Status {
 
 const INITIAL_STATUS: Status = { state: "idle", error: null };
 
-function assertObject(value: unknown): Record<string, unknown> {
+function assertIsRecord(
+  value: unknown
+): asserts value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) {
     throw new Error("Expected value to be an object");
   }
-  return value as Record<string, unknown>;
 }
 
-function assertBillingResultShape(result: unknown) {
-  const { responseCode, debugMessage } = assertObject(result);
+function assertBillingResultShape(result: unknown): void {
+  assertIsRecord(result);
+  const { responseCode, debugMessage } = result;
 
   if (!Number.isInteger(responseCode)) {
     throw new Error("BillingResult responseCode must be an integer");
   }
-
   if (typeof debugMessage !== "string") {
     throw new Error("BillingResult debugMessage must be a string");
   }
 }
 
-function assertPurchasesShape(purchases: unknown) {
+function assertPurchasesShape(purchases: unknown): void {
   if (!Array.isArray(purchases)) {
     throw new Error("Expected purchases to be an array");
   }
 
   purchases.forEach((purchase) => {
-    const { orderId, products, purchaseToken, isAcknowledged } =
-      assertObject(purchase);
+    assertIsRecord(purchase);
+    const { orderId, products, purchaseToken, isAcknowledged } = purchase;
 
     if (
       typeof orderId !== "string" &&
@@ -59,9 +60,112 @@ function assertPurchasesShape(purchases: unknown) {
   });
 }
 
+function assertProductDetailsShape(productDetails: unknown): void {
+  assertIsRecord(productDetails);
+  const { productId, oneTimePurchaseOfferDetails, subscriptionOfferDetails } =
+    productDetails;
+
+  if (typeof productId !== "string") {
+    throw new Error("productDetails.productId must be a string");
+  }
+
+  if (
+    oneTimePurchaseOfferDetails !== null &&
+    oneTimePurchaseOfferDetails !== undefined
+  ) {
+    assertIsRecord(oneTimePurchaseOfferDetails);
+    const { formattedPrice, priceAmountMicros, priceCurrencyCode } =
+      oneTimePurchaseOfferDetails;
+
+    if (typeof formattedPrice !== "string") {
+      throw new Error(
+        "oneTimePurchaseOfferDetails.formattedPrice must be a string"
+      );
+    }
+    if (typeof priceAmountMicros !== "number") {
+      throw new Error(
+        "oneTimePurchaseOfferDetails.priceAmountMicros must be a number"
+      );
+    }
+    if (typeof priceCurrencyCode !== "string") {
+      throw new Error(
+        "oneTimePurchaseOfferDetails.priceCurrencyCode must be a string"
+      );
+    }
+  }
+
+  if (
+    subscriptionOfferDetails !== null &&
+    subscriptionOfferDetails !== undefined
+  ) {
+    if (!Array.isArray(subscriptionOfferDetails)) {
+      throw new Error("subscriptionOfferDetails must be an array");
+    }
+    subscriptionOfferDetails.forEach((offer) => {
+      assertIsRecord(offer);
+      const { offerToken, pricingPhases } = offer;
+
+      if (typeof offerToken !== "string") {
+        throw new Error("subscriptionOfferDetails.offerToken must be a string");
+      }
+
+      if (pricingPhases !== null && pricingPhases !== undefined) {
+        if (!Array.isArray(pricingPhases)) {
+          throw new Error("pricingPhases must be an array");
+        }
+
+        pricingPhases.forEach((phase) => {
+          assertIsRecord(phase);
+          const {
+            billingCycleCount,
+            billingPeriod,
+            formattedPrice,
+            priceAmountMicros,
+            priceCurrencyCode,
+            recurrenceMode,
+          } = phase;
+
+          if (typeof billingCycleCount !== "number") {
+            throw new Error("pricingPhase.billingCycleCount must be a number");
+          }
+          if (typeof billingPeriod !== "string") {
+            throw new Error("pricingPhase.billingPeriod must be a string");
+          }
+          if (typeof formattedPrice !== "string") {
+            throw new Error("pricingPhase.formattedPrice must be a string");
+          }
+          if (typeof priceAmountMicros !== "number") {
+            throw new Error("pricingPhase.priceAmountMicros must be a number");
+          }
+          if (typeof priceCurrencyCode !== "string") {
+            throw new Error("pricingPhase.priceCurrencyCode must be a string");
+          }
+          if (typeof recurrenceMode !== "number") {
+            throw new Error("pricingPhase.recurrenceMode must be a number");
+          }
+        });
+      }
+    });
+  }
+}
+
+function assertProductDetailsResultShape(result: unknown): void {
+  assertIsRecord(result);
+  assertBillingResultShape(result.billingResult);
+
+  const { productDetailsList } = result;
+  if (!Array.isArray(productDetailsList)) {
+    throw new Error("productDetailsList must be an array");
+  }
+  productDetailsList.forEach(assertProductDetailsShape);
+}
+
 async function runIntegrationTest(): Promise<string | null> {
-  const disconnectedEvents: Array<unknown> = [];
-  const purchasesEvents: Array<unknown> = [];
+  const disconnectedEvents: Array<Record<string, never>> = [];
+  const purchasesEvents: Array<{
+    billingResult: unknown;
+    purchases: unknown;
+  }> = [];
 
   const serviceSubscription = BillingClient.addListener(
     "billingServiceDisconnected",
@@ -79,7 +183,7 @@ async function runIntegrationTest(): Promise<string | null> {
   try {
     const ready = await BillingClient.isReady();
     if (typeof ready !== "boolean") {
-      return "isReady should return boolean";
+      throw new Error("isReady should return boolean");
     }
 
     const connectionResult = await BillingClient.startConnection();
@@ -88,29 +192,52 @@ async function runIntegrationTest(): Promise<string | null> {
     const inapp = await BillingClient.queryPurchases({
       productType: ProductType.INAPP,
     });
-    const { billingResult: inAppBillingResult, purchases: inAppPurchases } =
-      assertObject(inapp);
-    assertBillingResultShape(inAppBillingResult);
-    assertPurchasesShape(inAppPurchases);
+    assertBillingResultShape(inapp.billingResult);
+    assertPurchasesShape(inapp.purchases);
 
     const subs = await BillingClient.queryPurchases({
       productType: ProductType.SUBS,
     });
-    const { billingResult: subBillingResult, purchases: subPurchases } =
-      assertObject(subs);
-    assertBillingResultShape(subBillingResult);
-    assertPurchasesShape(subPurchases);
+    assertBillingResultShape(subs.billingResult);
+    assertPurchasesShape(subs.purchases);
 
-    // TODO: Simulate events
+    const inappDetails = await BillingClient.queryProductDetails({
+      products: [{ productId: "test_product", productType: ProductType.INAPP }],
+    });
+    assertProductDetailsResultShape(inappDetails);
+
+    const subsDetails = await BillingClient.queryProductDetails({
+      products: [{ productId: "test_sub", productType: ProductType.SUBS }],
+    });
+    assertProductDetailsResultShape(subsDetails);
+
+    const launchResult = await BillingClient.launchBillingFlow({
+      products: [
+        {
+          productId: "test_product",
+          productType: ProductType.INAPP,
+        },
+      ],
+    });
+    assertBillingResultShape(launchResult);
+
+    const acknowledgeResult = await BillingClient.acknowledgePurchase({
+      purchaseToken: "test_token",
+    });
+    assertBillingResultShape(acknowledgeResult);
 
     purchasesEvents.forEach((event) => {
-      const { billingResult, purchases } = assertObject(event);
-      assertBillingResultShape(billingResult);
-      assertPurchasesShape(purchases);
+      assertBillingResultShape(event.billingResult);
+      assertPurchasesShape(event.purchases);
     });
 
     disconnectedEvents.forEach((event) => {
-      assertObject(event);
+      assertIsRecord(event);
+      if (Object.keys(event).length > 0) {
+        throw new Error(
+          "billingServiceDisconnected event payload should be empty"
+        );
+      }
     });
 
     return null;
