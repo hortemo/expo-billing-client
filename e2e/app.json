@@ -20,6 +20,9 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.hortemo.billingclient.e2e"
+    },
+    "ios": {
+      "bundleIdentifier": "com.hortemo.billingclient.e2e"
     }
   }
 }

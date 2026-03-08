@@ -14,8 +14,8 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
-import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 class QueryProductDetailsOptions : Record {
@@ -65,10 +65,10 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
     }
 
     AsyncFunction("startConnection") Coroutine { ->
-      suspendCancellableCoroutine { continuation: Continuation<Map<String, Any?>> ->
+      suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
         billingClient.startConnection(object : BillingClientStateListener {
           override fun onBillingSetupFinished(result: BillingResult) {
-            continuation.resume(result.toMap())
+            continuation.resumeSafely(result.toMap())
           }
 
           override fun onBillingServiceDisconnected() {
@@ -92,9 +92,9 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
         )
       }.build()
 
-      suspendCancellableCoroutine { continuation: Continuation<Map<String, Any?>> ->
+      suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
         billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
-          continuation.resume(
+          continuation.resumeSafely(
             mapOf(
               "billingResult" to billingResult.toMap(),
               "productDetailsList" to productDetailsList.orEmpty().map { it.toMap() }
@@ -121,7 +121,7 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
         )
         .build()
 
-      suspendCancellableCoroutine { continuation: Continuation<Map<String, Any?>> ->
+      suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
         billingClient.queryProductDetailsAsync(queryParams) { queryResult, productDetailsList ->
           if (queryResult.responseCode == BillingClient.BillingResponseCode.OK && productDetailsList != null) {
             val productDetailsById = productDetailsList.associateBy { it.productId }
@@ -136,9 +136,9 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
               )
               .build()
             val billingResult = billingClient.launchBillingFlow(activity, billingFlowParams)
-            continuation.resume(billingResult.toMap())
+            continuation.resumeSafely(billingResult.toMap())
           } else {
-            continuation.resume(queryResult.toMap())
+            continuation.resumeSafely(queryResult.toMap())
           }
         }
       }
@@ -149,9 +149,9 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
         options.purchaseToken?.let { setPurchaseToken(it) }
       }.build()
 
-      suspendCancellableCoroutine { continuation: Continuation<Map<String, Any?>> ->
+      suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
         billingClient.acknowledgePurchase(acknowledgeParams) { billingResult ->
-          continuation.resume(billingResult.toMap())
+          continuation.resumeSafely(billingResult.toMap())
         }
       }
     }
@@ -161,9 +161,9 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
         options.productType?.let { setProductType(it) }
       }.build()
 
-      suspendCancellableCoroutine { continuation: Continuation<Map<String, Any?>> ->
+      suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
         billingClient.queryPurchasesAsync(queryParams) { billingResult, purchases ->
-          continuation.resume(
+          continuation.resumeSafely(
             mapOf(
               "billingResult" to billingResult.toMap(),
               "purchases" to purchases.orEmpty().map { it.toMap() }
@@ -194,6 +194,12 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
     "responseCode" to responseCode,
     "debugMessage" to debugMessage
   )
+
+  private fun <T> CancellableContinuation<T>.resumeSafely(value: T) {
+    if (isActive) {
+      resume(value)
+    }
+  }
 
   private fun ProductDetails.toMap(): Map<String, Any?> {
     val map = mutableMapOf<String, Any?>("productId" to productId)
