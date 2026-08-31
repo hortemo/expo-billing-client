@@ -5,6 +5,7 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
@@ -51,7 +52,7 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
       ?: throw IllegalStateException("React context is not available")
     BillingClient.newBuilder(context)
       .setListener(this)
-      .enablePendingPurchases()
+      .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
       .build()
   }
 
@@ -93,11 +94,11 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
       }.build()
 
       suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
-        billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
+        billingClient.queryProductDetailsAsync(queryParams) { billingResult, queryProductDetailsResult ->
           continuation.resumeSafely(
             mapOf(
               "billingResult" to billingResult.toMap(),
-              "productDetailsList" to productDetailsList.orEmpty().map { it.toMap() }
+              "productDetailsList" to queryProductDetailsResult.productDetailsList.map { it.toMap() }
             )
           )
         }
@@ -122,9 +123,9 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
         .build()
 
       suspendCancellableCoroutine { continuation: CancellableContinuation<Map<String, Any?>> ->
-        billingClient.queryProductDetailsAsync(queryParams) { queryResult, productDetailsList ->
-          if (queryResult.responseCode == BillingClient.BillingResponseCode.OK && productDetailsList != null) {
-            val productDetailsById = productDetailsList.associateBy { it.productId }
+        billingClient.queryProductDetailsAsync(queryParams) { queryResult, queryProductDetailsResult ->
+          if (queryResult.responseCode == BillingClient.BillingResponseCode.OK) {
+            val productDetailsById = queryProductDetailsResult.productDetailsList.associateBy { it.productId }
             val billingFlowParams = BillingFlowParams.newBuilder()
               .setProductDetailsParamsList(
                 products.map { product ->
