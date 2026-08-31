@@ -197,8 +197,10 @@ class BillingClientModule : Module(), com.android.billingclient.api.PurchasesUpd
   )
 
   private fun <T> CancellableContinuation<T>.resumeSafely(value: T) {
-    if (isActive) {
-      resume(value)
+    synchronized(this) {
+      if (isActive) {
+        resume(value)
+      }
     }
   }
 
